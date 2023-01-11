@@ -173,11 +173,11 @@ class CreateYAML:
                 'Fn::Base64': {
                     'Fn::Join': [
                         "", [
-                            "#!/bin/bash\\n",
-                            "sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config\\n",
-                            f"echo {password} | passwd --stdin ec2-user\\n",
-                            f"echo Port {port} >> /etc/ssh/sshd_config\\n",
-                            "systemctl restart sshd\\n"
+                            "#!/bin/bash\n",
+                            "sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config\n",
+                            f"echo {password} | passwd --stdin ec2-user\n",
+                            f"echo Port {port} >> /etc/ssh/sshd_config\n",
+                            "systemctl restart sshd\n"
                         ]
                     ]
                 }
