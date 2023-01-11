@@ -23,7 +23,7 @@ requires = [
 
 setup(
     name='aws-bastion-cli',
-    version='0.0.1',
+    version='0.0.2',
     author='marcus16-kang',
     description='AWS Bastion EC2 Server Stack Generator',
     author_email='marcus16-kang@outlook.com',
