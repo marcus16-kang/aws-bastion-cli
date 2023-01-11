@@ -111,7 +111,7 @@ class DeployCfn:
             print('Done!\n\n')
             print('You can deploy Bastion EC2 using AWS CLI\n\n\n')
             print(
-                'aws cloudformation deploy --stack-name {} --region {} --template-file ./bastion.yaml'.format(
+                'aws cloudformation deploy --stack-name {} --region {} --capabilities CAPABILITY_NAMED_IAM --template-file ./bastion.yaml'.format(
                     name, region))
 
     def get_template(self):
