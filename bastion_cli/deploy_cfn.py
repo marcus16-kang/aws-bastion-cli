@@ -43,7 +43,7 @@ class DeployCfn:
             Text(
                 name='name',
                 message='Type CloudFormation Stack name',
-                validate=lambda _, x: stack_name_validator(x, self.region)
+                validate=lambda _, x: stack_name_validator(x, self.region),
             )
         ]
 
@@ -116,9 +116,7 @@ class DeployCfn:
 
     def get_template(self):
         with open('bastion.yaml', 'r') as f:
-            content = yaml.full_load(f)
-
-        content = json.dumps(content)
+            content = f.read()
 
         return content
 
