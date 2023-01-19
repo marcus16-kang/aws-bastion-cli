@@ -164,9 +164,31 @@ class CreateYAML:
                     'Ref': 'Key'
                 }
             }
+            self.resources['Instance']['Properties']['UserData'] = {
+                'Fn::Base64': {
+                    'Fn::Join': [
+                        "", [
+                            "#!/bin/bash\n",
+                            f"echo Port {port} >> /etc/ssh/sshd_config\n",
+                            "systemctl restart sshd\n"
+                        ]
+                    ]
+                }
+            }
 
         elif key_name:  # use already exists key
             self.resources['Instance']['Properties']['KeyName'] = key_name
+            self.resources['Instance']['Properties']['UserData'] = {
+                'Fn::Base64': {
+                    'Fn::Join': [
+                        "", [
+                            "#!/bin/bash\n",
+                            f"echo Port {port} >> /etc/ssh/sshd_config\n",
+                            "systemctl restart sshd\n"
+                        ]
+                    ]
+                }
+            }
 
         elif password:  # use password
             self.resources['Instance']['Properties']['UserData'] = {
