@@ -11,6 +11,8 @@ from bastion_cli.deploy_cfn import DeployCfn
 
 
 class Command:
+    # variables
+    project = None
     region = None
     vpc = None
     subnet = None
@@ -28,6 +30,7 @@ class Command:
     def __init__(self):
         print_figlet()
 
+        self.set_project_name()
         self.choose_region()
 
         self.choose_vpc()
@@ -52,6 +55,7 @@ class Command:
 
         # create template yaml file
         yaml_file = CreateYAML(
+            project=self.project,
             region=self.region,
             vpc=self.vpc,
             subnet=self.subnet,
@@ -68,6 +72,18 @@ class Command:
         yaml_file.create_yaml()
 
         DeployCfn(region=self.region)
+
+    def set_project_name(self):
+        questions = [
+            Text(
+                name='name',
+                message='Project name',
+                validate=lambda _, x: name_validator(x)
+            )
+        ]
+
+        answer = prompt(questions=questions, raise_keyboard_interrupt=True)
+        self.project = answer['name']
 
     def choose_region(self):
         questions = [

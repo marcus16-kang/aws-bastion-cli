@@ -9,10 +9,12 @@ class CreateYAML:
     template = {}
     resources = {}
     outputs = {}
+    project = ''
     ami = None
 
     def __init__(
             self,
+            project,
             region,
             vpc,
             subnet,
@@ -26,6 +28,7 @@ class CreateYAML:
             key_name=None,
             password=None,
     ):
+        self.project = project
         self.get_ami(region=region, instance_type=instance_type)
         self.create_role(role=role)
         self.create_sg(vpc=vpc, sg=sg, port=port)
@@ -72,10 +75,7 @@ class CreateYAML:
                 ],
                 'Path': '/',
                 'RoleName': role,
-                'Tags': [{
-                    'Key': 'Name',
-                    'Value': role
-                }]
+                'Tags': [{'Key': 'Name', 'Value': role}, {'Key': 'project', 'Value': self.project}]
             }
         }
 
@@ -84,11 +84,7 @@ class CreateYAML:
             'Properties': {
                 'InstanceProfileName': role,
                 'Path': '/',
-                'Roles': [
-                    {
-                        'Ref': 'Role'
-                    }
-                ]
+                'Roles': [{'Ref': 'Role'}]
             }
         }
 
@@ -109,10 +105,7 @@ class CreateYAML:
                     'CidrIp': '0.0.0.0/0',
                     'Description': 'SSH'
                 }],
-                'Tags': [{
-                    'Key': 'Name',
-                    'Value': sg
-                }],
+                'Tags': [{'Key': 'Name', 'Value': sg}, {'Key': 'project', 'Value': self.project}],
                 'VpcId': vpc
             }
         }
@@ -133,10 +126,7 @@ class CreateYAML:
                 'SubnetId': subnet,
                 'InstanceType': instance_type,
                 'DisableApiTermination': True,
-                'Tags': [{
-                    'Key': 'Name',
-                    'Value': instance_name
-                }],
+                'Tags': [{'Key': 'Name', 'Value': instance_name}, {'Key': 'project', 'Value': self.project}],
             }
         }
 
@@ -145,10 +135,7 @@ class CreateYAML:
                 'Type': 'AWS::EC2::KeyPair',
                 'Properties': {
                     'KeyName': new_key_name,
-                    'Tags': [{
-                        'Key': 'Name',
-                        'Value': new_key_name
-                    }],
+                    'Tags': [{'Key': 'Name', 'Value': new_key_name}, {'Key': 'project', 'Value': self.project}],
                 }
             }
             self.resources['Instance']['Properties']['KeyName'] = {
@@ -209,10 +196,7 @@ class CreateYAML:
         self.resources['EIP'] = {
             'Type': 'AWS::EC2::EIP',
             'Properties': {
-                'Tags': [{
-                    'Key': 'Name',
-                    'Value': eip
-                }]
+                'Tags': [{'Key': 'Name', 'Value': eip}, {'Key': 'project', 'Value': self.project}]
             }
         }
 
