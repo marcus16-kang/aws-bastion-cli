@@ -3,9 +3,9 @@ from setuptools import setup, find_packages
 requires = [
     'ansicon==1.89.0',
     'aws-cloudformation-visualizer==0.0.2',
-    'blessed==1.19.1',
-    'boto3==1.26.63',
-    'botocore==1.29.63',
+    'blessed==1.20.0',
+    'boto3==1.26.81',
+    'botocore==1.29.81',
     'inquirer==3.1.2',
     'jinxed==1.2.0',
     'jmespath==1.0.1',
@@ -14,7 +14,7 @@ requires = [
     'python-dateutil==2.8.2',
     'python-editor==1.0.4',
     'PyYAML==6.0',
-    'readchar==4.1.0.dev1',
+    'readchar==4.0.3',
     's3transfer==0.6.0',
     'six==1.16.0',
     'urllib3==1.26.14',
@@ -23,7 +23,7 @@ requires = [
 
 setup(
     name='aws-bastion-cli',
-    version='0.0.7',
+    version='0.1.1',
     author='marcus16-kang',
     description='AWS Bastion EC2 Server Stack Generator',
     author_email='marcus16-kang@outlook.com',
@@ -35,7 +35,7 @@ setup(
     },
     install_requires=requires,
     # packages=find_packages(),
-    python_requires='>=3.7',
+    python_requires='>=3.8',
     url='https://github.com/marcus16-kang/aws-bastion-cli',
     project_urls={
         'Source': 'https://github.com/marcus16-kang/aws-bastion-cli'

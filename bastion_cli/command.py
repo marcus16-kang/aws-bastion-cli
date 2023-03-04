@@ -1,17 +1,21 @@
+import sys
+
 import boto3
 from inquirer import prompt, List, Text
 
 from botocore.config import Config
 from botocore import session
+from botocore.exceptions import ProfileNotFound
 
 from bastion_cli.create_yaml import CreateYAML
-from bastion_cli.utils import print_figlet
+from bastion_cli.utils import print_figlet, bright_cyan
 from bastion_cli.validators import name_validator, instance_type_validator, port_validator
 from bastion_cli.deploy_cfn import DeployCfn
 
 
 class Command:
     # variables
+    session = None
     project = None
     region = None
     vpc = None
@@ -27,8 +31,11 @@ class Command:
     key_name = None
     password = None
 
-    def __init__(self):
+    def __init__(self, profile):
         print_figlet()
+
+        self.create_boto3_session(profile)
+        self.print_profile(profile)
 
         self.set_project_name()
         self.choose_region()
@@ -73,6 +80,18 @@ class Command:
 
         DeployCfn(region=self.region)
 
+    def create_boto3_session(self, profile='default'):
+        try:
+            self.session = boto3.session.Session(profile_name=profile)
+
+        except ProfileNotFound as e:
+            print(e)
+
+            sys.exit(1)
+
+    def print_profile(self, profile='default'):
+        print(f'Using AWS Profile {bright_cyan(profile)}')
+
     def set_project_name(self):
         questions = [
             Text(
@@ -116,7 +135,7 @@ class Command:
         self.region = answer.get('region')
 
     def choose_vpc(self):
-        response = session.get_session().create_client('ec2', config=Config(region_name=self.region)).describe_vpcs()
+        # response = session.get_session().create_client('ec2', config=Config(region_name=self.region)).describe_vpcs()
 
         if not response['Vpcs']:  # no vpc found in that region
             print('There\'s no any vpcs. Try another region.')
