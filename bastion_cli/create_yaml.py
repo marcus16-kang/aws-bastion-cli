@@ -11,6 +11,7 @@ class CreateYAML:
     outputs = {}
     project = ''
     ami = None
+    instance_profile = None
 
     def __init__(
             self,
@@ -23,6 +24,7 @@ class CreateYAML:
             eip,
             sg,
             role,
+            host,
             port,
             new_key_name=None,
             key_name=None,
@@ -31,7 +33,7 @@ class CreateYAML:
         self.project = project
         self.get_ami(region=region, instance_type=instance_type)
         self.create_role(role=role)
-        self.create_sg(vpc=vpc, sg=sg, port=port)
+        self.create_sg(vpc=vpc, sg=sg, host=host, port=port)
         self.create_instance(subnet=subnet, instance_name=instance_name, instance_type=instance_type, port=port,
                              new_key_name=new_key_name, key_name=key_name, password=password)
         self.create_eip(eip=eip)
@@ -50,61 +52,85 @@ class CreateYAML:
         self.ami = ami
 
     def create_role(self, role):
-        self.resources['Role'] = {
-            'Type': 'AWS::IAM::Role',
-            'Properties': {
-                'AssumeRolePolicyDocument': {
-                    'Version': '2012-10-17',
-                    'Statement': [
-                        {
-                            'Effect': 'Allow',
-                            'Principal': {
-                                'Service': [
-                                    'ec2.amazonaws.com'
+        if role['create'] is True:
+            self.resources['Role'] = {
+                'Type': 'AWS::IAM::Role',
+                'Properties': {
+                    'AssumeRolePolicyDocument': {
+                        'Version': '2012-10-17',
+                        'Statement': [
+                            {
+                                'Effect': 'Allow',
+                                'Principal': {
+                                    'Service': [
+                                        'ec2.amazonaws.com'
+                                    ]
+                                },
+                                'Action': [
+                                    'sts:AssumeRole'
                                 ]
-                            },
-                            'Action': [
-                                'sts:AssumeRole'
-                            ]
-                        }
-                    ]
-                },
-                'Description': 'Bastion EC2 Role',
-                'ManagedPolicyArns': [
-                    'arn:aws:iam::aws:policy/AdministratorAccess'
-                ],
-                'Path': '/',
-                'RoleName': role,
-                'Tags': [{'Key': 'Name', 'Value': role}, {'Key': 'project', 'Value': self.project}]
+                            }
+                        ]
+                    },
+                    'Description': 'Bastion EC2 Role',
+                    'ManagedPolicyArns': [
+                        'arn:aws:iam::aws:policy/AdministratorAccess'
+                    ],
+                    'Path': '/',
+                    'RoleName': role['name'],
+                    'Tags': [{'Key': 'Name', 'Value': role['name']}, {'Key': 'project', 'Value': self.project}]
+                }
             }
-        }
 
-        self.resources['InstanceProfile'] = {
-            'Type': 'AWS::IAM::InstanceProfile',
-            'Properties': {
-                'InstanceProfileName': role,
-                'Path': '/',
-                'Roles': [{'Ref': 'Role'}]
+            self.resources['InstanceProfile'] = {
+                'Type': 'AWS::IAM::InstanceProfile',
+                'Properties': {
+                    'InstanceProfileName': role['name'],
+                    'Path': '/',
+                    'Roles': [{'Ref': 'Role'}]
+                }
             }
-        }
 
-    def create_sg(self, vpc, sg, port):
+            self.instance_profile = {
+                'Ref': 'InstanceProfile'
+            }
+
+        elif role['name'] is not None:
+            self.instance_profile = role['Name']
+
+        else:
+            self.instance_profile = {
+                'Ref': 'AWS::NoValue'
+            }
+
+    def create_sg(self, vpc, sg, host, port):
         self.resources['SG'] = {
             'Type': 'AWS::EC2::SecurityGroup',
             'Properties': {
                 'GroupDescription': sg,
                 'GroupName': sg,
-                'SecurityGroupEgress': [{
-                    'IpProtocol': '-1',
-                    'CidrIp': '0.0.0.0/0'
-                }],
+                'SecurityGroupEgress': [
+                    {
+                        'IpProtocol': 'tcp',
+                        'FromPort': 80,
+                        'ToPort': 80,
+                        'CidrIp': '0.0.0.0/0',
+                        'Description': 'HTTP'
+                    }, {
+                        'IpProtocol': 'tcp',
+                        'FromPort': 443,
+                        'ToPort': 443,
+                        'CidrIp': '0.0.0.0/0',
+                        'Description': 'HTTPS'
+                    }
+                ],
                 'SecurityGroupIngress': [{
                     'IpProtocol': 'tcp',
                     'FromPort': port,
                     'ToPort': port,
-                    'CidrIp': '0.0.0.0/0',
+                    'CidrIp': item,
                     'Description': 'SSH'
-                }],
+                } for item in host],
                 'Tags': [{'Key': 'Name', 'Value': sg}, {'Key': 'project', 'Value': self.project}],
                 'VpcId': vpc
             }
@@ -114,9 +140,7 @@ class CreateYAML:
         self.resources['Instance'] = {
             'Type': 'AWS::EC2::Instance',
             'Properties': {
-                'IamInstanceProfile': {
-                    'Ref': 'InstanceProfile'
-                },
+                'IamInstanceProfile': self.instance_profile,
                 'ImageId': self.ami,
                 'SecurityGroupIds': [
                     {

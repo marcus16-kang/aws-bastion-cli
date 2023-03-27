@@ -1,17 +1,22 @@
+import sys
+
 import boto3
-from inquirer import prompt, List, Text
+import ipaddress
+from inquirer import prompt, Confirm, List, Text
 
 from botocore.config import Config
 from botocore import session
+from botocore.exceptions import ProfileNotFound
 
 from bastion_cli.create_yaml import CreateYAML
-from bastion_cli.utils import print_figlet
+from bastion_cli.utils import print_figlet, bright_cyan, get_my_ip
 from bastion_cli.validators import name_validator, instance_type_validator, port_validator
 from bastion_cli.deploy_cfn import DeployCfn
 
 
 class Command:
     # variables
+    session = None
     project = None
     region = None
     vpc = None
@@ -21,14 +26,21 @@ class Command:
     instance_type = None
     eip = None
     sg = None
-    role = None
+    role = {
+        'name': None,
+        'create': False
+    }
+    host = None
     port = None
     new_key_name = None
     key_name = None
     password = None
 
-    def __init__(self):
+    def __init__(self, profile):
         print_figlet()
+
+        self.create_boto3_session(profile)
+        self.print_profile(profile)
 
         self.set_project_name()
         self.choose_region()
@@ -49,9 +61,10 @@ class Command:
 
         self.get_eip_name()
         self.get_sg_name()
-        self.get_role_name()
+        self.get_ssh_host()
         self.get_ssh_port()
         self.get_authentication()
+        self.get_role_name()
 
         # create template yaml file
         yaml_file = CreateYAML(
@@ -64,6 +77,7 @@ class Command:
             eip=self.eip,
             sg=self.sg,
             role=self.role,
+            host=self.host,
             port=self.port,
             new_key_name=self.new_key_name,
             key_name=self.key_name,
@@ -72,6 +86,18 @@ class Command:
         yaml_file.create_yaml()
 
         DeployCfn(region=self.region)
+
+    def create_boto3_session(self, profile='default'):
+        try:
+            self.session = boto3.session.Session(profile_name=profile)
+
+        except ProfileNotFound as e:
+            print(e)
+
+            sys.exit(1)
+
+    def print_profile(self, profile='default'):
+        print(f'Using AWS Profile {bright_cyan(profile)}')
 
     def set_project_name(self):
         questions = [
@@ -116,7 +142,7 @@ class Command:
         self.region = answer.get('region')
 
     def choose_vpc(self):
-        response = session.get_session().create_client('ec2', config=Config(region_name=self.region)).describe_vpcs()
+        response = self.session.client('ec2', region_name=self.region).describe_vpcs()
 
         if not response['Vpcs']:  # no vpc found in that region
             print('There\'s no any vpcs. Try another region.')
@@ -125,20 +151,24 @@ class Command:
 
         else:
             vpc_list = []
+            vpc_show_list = []
 
             for vpc in response['Vpcs']:
                 vpc_id = vpc['VpcId']
                 cidr = vpc['CidrBlock']
                 name = next((item['Value'] for item in vpc.get('Tags', {}) if item['Key'] == 'Name'), None)
 
-                vpc_show_data = f'{vpc_id} ({cidr}{f", {name}" if name else ""})'
-                vpc_list.append((vpc_show_data, vpc_id))
+                vpc_list.append((vpc_id, cidr, name))
+
+            for vpc in sorted(vpc_list, key=lambda x: (x[1], x[0], x[2])):
+                vpc_show_data = f'''{vpc[0]} ({vpc[1]}{f", {vpc[2]}" if vpc[2] else ""})'''
+                vpc_show_list.append((vpc_show_data, vpc[0]))
 
             questions = [
                 List(
                     name='vpc',
                     message='Choose vpc',
-                    choices=vpc_list
+                    choices=vpc_show_list
                 )
             ]
 
@@ -146,7 +176,7 @@ class Command:
             self.vpc = answer.get('vpc')
 
     def choose_subnet(self):
-        response = session.get_session().create_client('ec2', config=Config(region_name=self.region)).describe_subnets(
+        response = self.session.client('ec2', region_name=self.region).describe_subnets(
             Filters=[{'Name': 'vpc-id', 'Values': [self.vpc]}]
         )
 
@@ -157,6 +187,7 @@ class Command:
 
         else:
             subnet_list = []
+            subnet_show_list = []
 
             for subnet in response['Subnets']:
                 subnet_id = subnet['SubnetId']
@@ -164,8 +195,15 @@ class Command:
                 cidr = subnet['CidrBlock']
                 name = next((item['Value'] for item in subnet.get('Tags', {}) if item['Key'] == 'Name'), None)
 
-                subnet_show_data = f'{subnet_id} ({cidr}, {az}{f", {name}" if name else ""})'
-                subnet_list.append((subnet_show_data, (subnet_id, az)))
+                subnet_list.append((subnet_id, az, cidr, name))
+            subnet_list = sorted(subnet_list,
+                                 key=lambda x: (list(ipaddress.IPv4Network(x[2]).hosts())[0]._ip, x[1], x[3], x[0]),
+                                 reverse=False)
+
+            # for subnet in sorted(subnet_list, key=lambda x: (x[0])):
+            for subnet in subnet_list:
+                subnet_show_data = f'''{subnet[0]} ({subnet[2]}, {subnet[1]}{f", {subnet[3]}" if subnet[3] else ""})'''
+                subnet_show_list.append((subnet_show_data, subnet[0]))
 
             questions = [
                 List(
@@ -231,16 +269,68 @@ class Command:
         self.sg = answer.get('name')
 
     def get_role_name(self):
+        response = self.session.client('iam', region_name=self.region).list_instance_profiles()
+        instance_profile_list = ['None', 'Create a new role']
+
+        for profile in response['InstanceProfiles']:
+            for role in profile['Roles']:
+                instance_profile_list.append(
+                    (f"{profile['InstanceProfileName']} ({role['RoleName']})", f"{profile['InstanceProfileName']}"))
+
         questions = [
-            Text(
+            List(
                 name='name',
-                message='Enter the IAM role name',
-                validate=lambda _, x: name_validator(x)
+                message='Choose the IAM role',
+                carousel=False,
+                choices=instance_profile_list,
+                other=False
             )
         ]
-
         answer = prompt(questions=questions, raise_keyboard_interrupt=True)
-        self.role = answer.get('name')
+
+        if answer['name'] == 'None':
+            self.role = {
+                'name': None,
+                'create': False
+            }
+
+        elif answer['name'] == 'Create a new role':
+            questions = [
+                Text(
+                    name='name',
+                    message='Enter the IAM role name',
+                    validate=lambda _, x: name_validator(x)
+                )
+            ]
+
+            answer = prompt(questions=questions, raise_keyboard_interrupt=True)
+
+            self.role = {
+                'name': answer.get('name'),
+                'create': True
+            }
+
+        else:
+            self.role = {
+                'name': answer.get('name'),
+                'create': False
+            }
+
+    def get_ssh_host(self):
+        questions = [
+            List(
+                name='host',
+                message='Choose the SSH inbound source',
+                choices=[
+                    get_my_ip(),
+                    '0.0.0.0/0',
+                ],
+                carousel=True,
+                other=True
+            )
+        ]
+        answer = prompt(questions=questions, raise_keyboard_interrupt=True)
+        self.host = answer.get('host').replace(' ', '').split(',')
 
     def get_ssh_port(self):
         questions = [
