@@ -2,10 +2,8 @@ import sys
 
 import boto3
 import ipaddress
-from inquirer import prompt, Confirm, List, Text
+from inquirer import prompt, List, Text
 
-from botocore.config import Config
-from botocore import session
 from botocore.exceptions import ProfileNotFound
 
 from bastion_cli.create_yaml import CreateYAML
@@ -15,10 +13,14 @@ from bastion_cli.deploy_cfn import DeployCfn
 
 
 class Command:
+    """
+    Get values from cli.
+    """
     # variables
-    session = None
-    project = None
-    region = None
+    session: boto3.Session = None
+    profile: str = None
+    project: str = None
+    region: str = None
     vpc = None
     subnet = None
     az = None
@@ -43,7 +45,7 @@ class Command:
         self.print_profile(profile)
 
         self.set_project_name()
-        self.choose_region()
+        self.choose_region(profile)
 
         self.choose_vpc()
         if not self.vpc:  # no vpc found in that region
@@ -85,9 +87,16 @@ class Command:
         )
         yaml_file.create_yaml()
 
-        DeployCfn(region=self.region)
+        DeployCfn(region=self.region, profile=profile)
 
-    def create_boto3_session(self, profile='default'):
+    def create_boto3_session(self, profile='default') -> None:
+        """
+        Create boto3 session before query using profile argument.
+
+        :param profile:
+        :return:
+        """
+
         try:
             self.session = boto3.session.Session(profile_name=profile)
 
@@ -96,10 +105,23 @@ class Command:
 
             sys.exit(1)
 
-    def print_profile(self, profile='default'):
+    def print_profile(self, profile='default') -> None:
+        """
+        Print profile to console.
+
+        :param profile:
+        :return:
+        """
+
         print(f'Using AWS Profile {bright_cyan(profile)}')
 
-    def set_project_name(self):
+    def set_project_name(self) -> None:
+        """
+        Set project name.
+
+        :return:
+        """
+
         questions = [
             Text(
                 name='name',
@@ -111,7 +133,14 @@ class Command:
         answer = prompt(questions=questions, raise_keyboard_interrupt=True)
         self.project = answer['name']
 
-    def choose_region(self):
+    def choose_region(self, profile) -> None:
+        """
+        Choose region and create a new session using region name in hard-coded region list.
+
+        :param profile:
+        :return:
+        """
+
         questions = [
             List(
                 name='region',
@@ -140,12 +169,21 @@ class Command:
 
         answer = prompt(questions=questions, raise_keyboard_interrupt=True)
         self.region = answer.get('region')
+        self.session = boto3.Session(profile_name=profile, region_name=self.region)
 
-    def choose_vpc(self):
-        response = self.session.client('ec2', region_name=self.region).describe_vpcs()
+    def choose_vpc(self) -> None:
+        """
+        Choose vpc from chosen region's vpcs.
+
+        It shows sorted vpc list (cidr, id, name).
+
+        :return:
+        """
+
+        response = self.session.client('ec2').describe_vpcs()
 
         if not response['Vpcs']:  # no vpc found in that region
-            print('There\'s no any vpcs. Try another region.')
+            print("There's no any vpcs. Try another region.")
 
             return
 
@@ -175,13 +213,21 @@ class Command:
             answer = prompt(questions=questions, raise_keyboard_interrupt=True)
             self.vpc = answer.get('vpc')
 
-    def choose_subnet(self):
-        response = self.session.client('ec2', region_name=self.region).describe_subnets(
+    def choose_subnet(self) -> None:
+        """
+        Choose subnet from chosen region's subnets.
+
+        It shows sorted subnet list (cidr, az, name, id).
+
+        :return:
+        """
+
+        response = self.session.client('ec2').describe_subnets(
             Filters=[{'Name': 'vpc-id', 'Values': [self.vpc]}]
         )
 
         if not response['Subnets']:  # no vpc found in that region
-            print('There\'s no any subnets. Try another vpc.')
+            print("There's no any subnets. Try another vpc.")
 
             return
 
@@ -196,6 +242,7 @@ class Command:
                 name = next((item['Value'] for item in subnet.get('Tags', {}) if item['Key'] == 'Name'), None)
 
                 subnet_list.append((subnet_id, az, cidr, name))
+
             subnet_list = sorted(subnet_list,
                                  key=lambda x: (list(ipaddress.IPv4Network(x[2]).hosts())[0]._ip, x[1], x[3], x[0]),
                                  reverse=False)
@@ -209,16 +256,21 @@ class Command:
                 List(
                     name='subnet',
                     message='Choose subnet',
-                    choices=subnet_list
+                    choices=subnet_show_list
                 )
             ]
 
             answer = prompt(questions=questions, raise_keyboard_interrupt=True)
             self.subnet = answer.get('subnet')[0]
             self.az = answer.get('subnet')[1]
-            # print(answer, self.subnet, self.az)
 
-    def get_instance_name(self):
+    def get_instance_name(self) -> None:
+        """
+        Type the EC2 instance's name.
+
+        :return:
+        """
+
         questions = [
             Text(
                 name='name',
@@ -230,12 +282,20 @@ class Command:
         answer = prompt(questions=questions, raise_keyboard_interrupt=True)
         self.instance_name = answer.get('name')
 
-    def get_instance_type(self):
+    def get_instance_type(self) -> None:
+        """
+        Type the EC2 instance's instance type.
+
+        Validate the instance type using AWS SDK.
+
+        :return:
+        """
+
         questions = [
             Text(
                 name='type',
                 message='Enter the instance type',
-                validate=lambda _, x: instance_type_validator(x, self.region, self.az)
+                validate=lambda _, x: instance_type_validator(x, self.session, self.az)
             )
         ]
 
@@ -244,7 +304,13 @@ class Command:
 
         self.instance_type = instance_type
 
-    def get_eip_name(self):
+    def get_eip_name(self) -> None:
+        """
+        Type the Elastic IP name.
+
+        :return:
+        """
+
         questions = [
             Text(
                 name='name',
@@ -256,7 +322,13 @@ class Command:
         answer = prompt(questions=questions, raise_keyboard_interrupt=True)
         self.eip = answer.get('name')
 
-    def get_sg_name(self):
+    def get_sg_name(self) -> None:
+        """
+        Type the Security Group name.
+
+        :return:
+        """
+
         questions = [
             Text(
                 name='name',
@@ -268,8 +340,14 @@ class Command:
         answer = prompt(questions=questions, raise_keyboard_interrupt=True)
         self.sg = answer.get('name')
 
-    def get_role_name(self):
-        response = self.session.client('iam', region_name=self.region).list_instance_profiles()
+    def get_role_name(self) -> None:
+        """
+        Choose the IAM role in list, or get a role name for creating a new role.
+
+        :return:
+        """
+
+        response = self.session.client('iam').list_instance_profiles()
         instance_profile_list = ['None', 'Create a new role']
 
         for profile in response['InstanceProfiles']:
@@ -316,7 +394,13 @@ class Command:
                 'create': False
             }
 
-    def get_ssh_host(self):
+    def get_ssh_host(self) -> None:
+        """
+        Choose the SSH host (my ip, any open, or type any cidr format.)
+
+        :return:
+        """
+
         questions = [
             List(
                 name='host',
@@ -333,6 +417,7 @@ class Command:
         self.host = answer.get('host').replace(' ', '').split(',')
 
     def get_ssh_port(self):
+        # TODO: Create JSDoc.
         questions = [
             Text(
                 name='port',
@@ -347,7 +432,7 @@ class Command:
 
     def get_authentication(self):
         choices = [item['KeyName'] for item in
-                   boto3.client('ec2', config=Config(region_name=self.region)).describe_key_pairs()['KeyPairs']]
+                   self.session.client('ec2').describe_key_pairs()['KeyPairs']]
         choices.append(('Create a new key pair', 'new'))
         choices.append(('Use a password', 'password'))
 

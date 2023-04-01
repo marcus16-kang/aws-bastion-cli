@@ -5,7 +5,12 @@ from bastion_cli.command import Command
 from bastion_cli import VERSION
 
 
-def get_arguments():
+def get_arguments() -> dict:
+    """
+    Get arguments for cli.
+
+    :return: dict
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument('-p', '--profile', dest='profile', action='store', default='default',
                         help='use aws credential profile.')
@@ -18,6 +23,11 @@ def get_arguments():
 
 
 def main():
+    """
+    Main function.
+
+    :return:
+    """
     try:
         options = get_arguments()
 

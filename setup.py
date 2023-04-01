@@ -4,9 +4,9 @@ requires = [
     'ansicon==1.89.0',
     'aws-cloudformation-visualizer==0.0.2',
     'blessed==1.20.0',
-    'boto3==1.26.81',
-    'botocore==1.29.81',
-    'inquirer==3.1.2',
+    'boto3==1.26.104',
+    'botocore==1.29.104',
+    'inquirer==3.1.3',
     'jinxed==1.2.0',
     'jmespath==1.0.1',
     'prettytable==3.6.0',
@@ -23,7 +23,7 @@ requires = [
 
 setup(
     name='aws-bastion-cli',
-    version='0.1.1',
+    version='0.2.1',
     author='marcus16-kang',
     description='AWS Bastion EC2 Server Stack Generator',
     author_email='marcus16-kang@outlook.com',
