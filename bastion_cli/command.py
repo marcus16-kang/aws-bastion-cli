@@ -250,7 +250,7 @@ class Command:
             # for subnet in sorted(subnet_list, key=lambda x: (x[0])):
             for subnet in subnet_list:
                 subnet_show_data = f'''{subnet[0]} ({subnet[2]}, {subnet[1]}{f", {subnet[3]}" if subnet[3] else ""})'''
-                subnet_show_list.append((subnet_show_data, subnet[0]))
+                subnet_show_list.append((subnet_show_data, (subnet[0], subnet[1])))
 
             questions = [
                 List(
