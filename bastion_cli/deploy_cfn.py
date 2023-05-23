@@ -1,4 +1,3 @@
-import os
 import boto3
 from botocore.config import Config
 from inquirer import prompt, Confirm, Text
@@ -8,7 +7,7 @@ from prettytable import PrettyTable
 from cfn_visualizer import visualizer
 
 from bastion_cli.validators import stack_name_validator
-from bastion_cli.utils import bright_green, bright_red
+from bastion_cli.utils import bright_green, bright_red, modify_instance_attributes
 
 
 class DeployCfn:
@@ -79,6 +78,7 @@ class DeployCfn:
                     break
 
                 elif stack_status == 'CREATE_COMPLETE':  # create complete successful
+                    modify_instance_attributes(self.get_instance_id(), region)
                     self.print_table()
                     self.create_key_pair()
                     print(bright_green('Success!'))
@@ -122,9 +122,6 @@ class DeployCfn:
         print(table)
 
     def create_key_pair(self):
-        home_dir = os.path.expanduser('~')
-        key_location = (home_dir + '/Desktop') if os.path.exists(home_dir + '/Desktop') else home_dir
-
         response = self.client.describe_stacks(StackName=self.name)
         key_id = [item.get('OutputValue') for item in response['Stacks'][0]['Outputs'] if item['OutputKey'] == 'KeyId']
         key_name = [item.get('OutputValue') for item in response['Stacks'][0]['Outputs'] if
@@ -137,8 +134,15 @@ class DeployCfn:
             )
             key_body = response['Parameter']['Value']
 
-            with open(f'{key_location}/{key_name[0]}.pem', 'w') as f:
+            with open(f'{key_name[0]}.pem', 'w') as f:
                 f.write(key_body)
 
         else:
             pass
+
+    def get_instance_id(self):
+        response = self.client.describe_stacks(StackName=self.name)
+        instance_id = [item.get('OutputValue') for item in response['Stacks'][0]['Outputs'] if
+                       item['OutputKey'] == 'InstanceId'][0]
+
+        return instance_id

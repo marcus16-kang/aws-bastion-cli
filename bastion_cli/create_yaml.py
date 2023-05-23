@@ -140,6 +140,18 @@ class CreateYAML:
         self.resources['Instance'] = {
             'Type': 'AWS::EC2::Instance',
             'Properties': {
+                'BlockDeviceMappings': [
+                    {
+                        'DeviceName': '/dev/xvda',
+                        'Ebs': {
+                            'Encrypted': True,
+                            'Iops': 3000,
+                            'VolumeSize': 50,
+                            'VolumeType': 'gp3',
+                            # 'Throughput': 125
+                        }
+                    }
+                ],
                 'IamInstanceProfile': self.instance_profile,
                 'ImageId': self.ami,
                 'SecurityGroupIds': [
@@ -262,6 +274,11 @@ class CreateYAML:
                         }
                     }
                 ]
+            }
+        }
+        self.outputs['InstanceId'] = {
+            'Value': {
+                'Ref': 'Instance'
             }
         }
         self.outputs['SSHPassword'] = {}
