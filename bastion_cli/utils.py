@@ -1,4 +1,5 @@
-import socket
+import boto3
+from urllib import request
 from pyfiglet import Figlet
 
 
@@ -53,7 +54,31 @@ def get_my_ip() -> str:
         :return:
     """
 
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.connect(('1.1.1.1', 443))
+    ip = request.urlopen('https://ident.me').read().decode('utf-8')
 
-    return sock.getsockname()[0] + '/32'
+    return f'{ip}/32'
+
+
+def modify_instance_attributes(instance_id: str, region: str):
+    """
+        Update Instance's attiributes.
+
+        - IMDS
+        - Stop Protection
+
+        :param instance_id:
+        :param region:
+        :return:
+    """
+    client = boto3.client('ec2', region_name=region)
+    client.modify_instance_attribute(
+        InstanceId=instance_id,
+        DisableApiStop={
+            'Value': True
+        }
+    )
+    client.modify_instance_metadata_options(
+        InstanceId=instance_id,
+        HttpTokens='required',
+        HttpEndpoint='enabled'
+    )
