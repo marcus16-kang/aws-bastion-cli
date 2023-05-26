@@ -96,7 +96,7 @@ class CreateYAML:
             }
 
         elif role['name'] is not None:
-            self.instance_profile = role['Name']
+            self.instance_profile = role['name']
 
         else:
             self.instance_profile = {
